@@ -8,12 +8,12 @@ variable "vpc_id" {
   default     = ""
 }
 
-variable "pjt_name" {
+variable "desc" {
   type        = string
   default     = ""
 }
 
-variable "desc" {
+variable "pjt_name" {
   type        = string
   default     = ""
 }

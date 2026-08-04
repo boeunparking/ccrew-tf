@@ -4,6 +4,6 @@ resource "aws_security_group" "tf_sg" {
   vpc_id = var.vpc_id
 
   tags = {
-    Name = "${var.pjt_name}-sg"
+    Name = "${var.pjt_name}"
   }
 }

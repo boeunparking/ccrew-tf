@@ -4,6 +4,6 @@ resource "aws_subnet" "tf_sn" {
   availability_zone = var.az_name
 
   tags = {
-    Name = "${var.sn_cidr_block}-sn"
+    Name = "${var.pjt_name}"
   }
 }

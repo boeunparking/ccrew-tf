@@ -14,3 +14,7 @@ variable "az_name" {
   type        = string
   default     = ""
 }
+variable "pjt_name" {
+  type        = string
+  default     = ""
+}

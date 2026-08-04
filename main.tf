@@ -20,7 +20,7 @@ module "vpc" {
   source         = "./modules/vpc"
   region         = "ap-northeast-2"
   vpc_cidr_block = "10.0.0.0/16"
-  pjt_name       = "vpc-seoul"
+  pjt_name       = "seoul-vpc"
 }
 
 module "tf_pub_sn1" {
@@ -29,6 +29,7 @@ module "tf_pub_sn1" {
   vpc_id        = module.vpc.vpc_id
   sn_cidr_block = "10.0.1.0/24"
   az_name       = "ap-northeast-2a"
+  pjt_name      = "tf-pub-sn1"
 }
 
 module "tf_pri_sn2" {
@@ -37,6 +38,7 @@ module "tf_pri_sn2" {
   vpc_id        = module.vpc.vpc_id
   sn_cidr_block = "10.0.2.0/24"
   az_name       = "ap-northeast-2a"
+  pjt_name      = "tf-pri-sn2"
 }
 
 module "tf_pri_sn3" {
@@ -45,6 +47,7 @@ module "tf_pri_sn3" {
   vpc_id        = module.vpc.vpc_id
   sn_cidr_block = "10.0.3.0/24"
   az_name       = "ap-northeast-2c"
+  pjt_name      = "tf-pri-sn3"
 }
 
 module "tf_db_sn4" {
@@ -53,6 +56,7 @@ module "tf_db_sn4" {
   vpc_id        = module.vpc.vpc_id
   sn_cidr_block = "10.0.4.0/24"
   az_name       = "ap-northeast-2a"
+  pjt_name      = "tf-db-sn4"
 }
 
 module "tf_db_sn5" {
@@ -61,31 +65,32 @@ module "tf_db_sn5" {
   vpc_id        = module.vpc.vpc_id
   sn_cidr_block = "10.0.5.0/24"
   az_name       = "ap-northeast-2c"
+  pjt_name      = "tf-db-sn5"
 }
 
 
 # 퍼블릭 라우팅 테이블 12  
 module "tf_pub_rt1" {
-    source = "./modules/route_table"
-    vpc_id = module.vpc.vpc_id
-    pjt_name = "ccrew-pub-rt1"
+  source   = "./modules/route_table"
+  vpc_id   = module.vpc.vpc_id
+  pjt_name = "tf-pub-rt1"
 }
 
 resource "aws_route_table_association" "tf_rt_sn_ass1" {
-  subnet_id       = module.tf_pub_sn1.sn_id
-  route_table_id  = module.tf_pub_rt1.rt_id
+  subnet_id      = module.tf_pub_sn1.sn_id
+  route_table_id = module.tf_pub_rt1.rt_id
 }
 
 resource "aws_route" "pub_default" {
-    route_table_id = module.tf_pub_rt1.rt_id
-    destination_cidr_block = "0.0.0.0/0"
-    gateway_id = module.vpc.igw_id
+  route_table_id         = module.tf_pub_rt1.rt_id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = module.vpc.igw_id
 }
 
 # EIP 
 resource "aws_eip" "tf_nat_eip" {
   tags = {
-    Name = "${var.region}-nat-eip"
+    Name = "tf-nat-eip"
   }
 }
 
@@ -95,57 +100,57 @@ resource "aws_nat_gateway" "tf_nat_gw" {
   subnet_id     = module.tf_pub_sn1.sn_id
 
   tags = {
-    Name = "${var.region}-nat-gw"
+    Name = "tf-nat-gw"
   }
   depends_on = [module.vpc.igw_id]
 }
 
 # 프라이빗 라우팅 테이블 23
 module "tf_pri_rt23" {
-    source = "./modules/route_table"
-    vpc_id = module.vpc.vpc_id
-    pjt_name = "ccrew-pri-rt23"
+  source   = "./modules/route_table"
+  vpc_id   = module.vpc.vpc_id
+  pjt_name = "tf-pri-rt23"
 }
 
 resource "aws_route_table_association" "tf_rt_sn_ass2" {
-  subnet_id       = module.tf_pri_sn2.sn_id
-  route_table_id  = module.tf_pri_rt23.rt_id
+  subnet_id      = module.tf_pri_sn2.sn_id
+  route_table_id = module.tf_pri_rt23.rt_id
 }
 resource "aws_route_table_association" "tf_rt_sn_ass3" {
-  subnet_id       = module.tf_pri_sn3.sn_id
-  route_table_id  = module.tf_pri_rt23.rt_id
+  subnet_id      = module.tf_pri_sn3.sn_id
+  route_table_id = module.tf_pri_rt23.rt_id
 }
 
 resource "aws_route" "pri_default" {
-    route_table_id = module.tf_pri_rt23.rt_id
-    destination_cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.tf_nat_gw.id
-    depends_on = [aws_nat_gateway.tf_nat_gw]
+  route_table_id         = module.tf_pri_rt23.rt_id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_nat_gateway.tf_nat_gw.id
+  depends_on             = [aws_nat_gateway.tf_nat_gw]
 }
 
 # 프라이빗 라우팅 테이블 45
 module "tf_db_rt45" {
-    source = "./modules/route_table"
-    vpc_id = module.vpc.vpc_id
-    pjt_name = "ccrew-db-rt45"
+  source   = "./modules/route_table"
+  vpc_id   = module.vpc.vpc_id
+  pjt_name = "tf-db-rt45"
 }
 
 resource "aws_route_table_association" "tf_rt_sn_ass4" {
-  subnet_id       = module.tf_db_sn4.sn_id
-  route_table_id  = module.tf_db_rt45.rt_id
+  subnet_id      = module.tf_db_sn4.sn_id
+  route_table_id = module.tf_db_rt45.rt_id
 }
 resource "aws_route_table_association" "tf_rt_sn_ass5" {
-  subnet_id       = module.tf_db_sn5.sn_id
-  route_table_id  = module.tf_db_rt45.rt_id
+  subnet_id      = module.tf_db_sn5.sn_id
+  route_table_id = module.tf_db_rt45.rt_id
 }
 
 # ALB 보안그룹
 module "alb_sg" {
   source   = "./modules/security_group"
   region   = "ap-northeast-2"
-  pjt_name = "ccrew-alb"
+  pjt_name = "tf-alb-sg"
   vpc_id   = module.vpc.vpc_id
-  desc = "Allow HTTP, HTTPS"
+  desc     = "Allow HTTP, HTTPS"
 }
 
 resource "aws_vpc_security_group_ingress_rule" "tf_alb_sg_ingress_https" {
@@ -175,17 +180,17 @@ resource "aws_vpc_security_group_egress_rule" "tf_alb_sg_egress" {
 module "ecs_sg" {
   source   = "./modules/security_group"
   region   = "ap-northeast-2"
-  pjt_name = "ccrew-ecs"
+  pjt_name = "tf-ecs-sg"
   vpc_id   = module.vpc.vpc_id
-  desc = "Allow 3000"
+  desc     = "Allow 3000"
 }
 
 resource "aws_vpc_security_group_ingress_rule" "tf_ecs_sg_ingress" {
-  security_group_id = module.ecs_sg.sg_id
+  security_group_id            = module.ecs_sg.sg_id
   referenced_security_group_id = module.alb_sg.sg_id
-  from_port         = 3000
-  ip_protocol       = "tcp"
-  to_port           = 3000
+  from_port                    = 3000
+  ip_protocol                  = "tcp"
+  to_port                      = 3000
 }
 
 resource "aws_vpc_security_group_egress_rule" "tf_ecs_sg_egress" {
@@ -199,16 +204,16 @@ resource "aws_vpc_security_group_egress_rule" "tf_ecs_sg_egress" {
 module "db_sg" {
   source   = "./modules/security_group"
   region   = "ap-northeast-2"
-  pjt_name = "ccrew-db"
+  pjt_name = "tf-db-sg"
   vpc_id   = module.vpc.vpc_id
-  desc = "Allow 3306"
+  desc     = "Allow 3306"
 }
 
 resource "aws_vpc_security_group_ingress_rule" "tf_db_sg_ingress" {
-  security_group_id = module.db_sg.sg_id
+  security_group_id            = module.db_sg.sg_id
   referenced_security_group_id = module.ecs_sg.sg_id
-  from_port         = 3306
-  ip_protocol       = "tcp"
-  to_port           = 3306
+  from_port                    = 3306
+  ip_protocol                  = "tcp"
+  to_port                      = 3306
 }
 
