@@ -6,7 +6,7 @@ variable "vpc_id" {
   type        = string
   default     = ""
 }
-variable "sn_cidr_block" {
+variable "cidr_block" {
   type        = string
   default     = ""
 }
