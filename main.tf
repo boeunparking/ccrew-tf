@@ -28,12 +28,12 @@ module "vpc" {
 # 서브넷 ID 참조: module.subnet["pri-sn3"].sn_id
 locals {
     subnets = {
-        pub-sn1 = {cidr = "10.0.1.0/24", az = "ap-northeast-2a", tier = "public"},
-        pub-sn2 = {cidr = "10.0.2.0/24", az = "ap-northeast-2c", tier = "public"},
-        pri-sn3 = {cidr = "10.0.3.0/24", az = "ap-northeast-2a", tier = "ecs"},
-        pri-sn4 = {cidr = "10.0.4.0/24", az = "ap-northeast-2c", tier = "ecs"},
-        db-sn5 = {cidr = "10.0.5.0/24", az = "ap-northeast-2a", tier = "db"},
-        db-sn6 = {cidr = "10.0.6.0/24", az = "ap-northeast-2c", tier = "db"}
+        pub-sn1 = {cidr = "10.0.0.0/24", az = "ap-northeast-2a", tier = "public"},
+        pub-sn2 = {cidr = "10.0.1.0/24", az = "ap-northeast-2c", tier = "public"},
+        pri-sn3 = {cidr = "10.0.2.0/24", az = "ap-northeast-2a", tier = "ecs"},
+        pri-sn4 = {cidr = "10.0.3.0/24", az = "ap-northeast-2c", tier = "ecs"},
+        db-sn5 = {cidr = "10.0.4.0/24", az = "ap-northeast-2a", tier = "db"},
+        db-sn6 = {cidr = "10.0.5.0/24", az = "ap-northeast-2c", tier = "db"}
     }
     public_subnets = { for k, v in local.subnets : k => v if v.tier == "public" }
     ecs_subnets = { for k, v in local.subnets : k => v if v.tier == "ecs" }
@@ -51,28 +51,20 @@ locals {
       alb_egress_to_user        = { nacl = "alb", rule_number = 110, egress = true,  cidr_block = "0.0.0.0/0", from_port = 1024, to_port = 65535 }
       alb_egress_to_ecr         = { nacl = "alb", rule_number = 120, egress = true,  cidr_block = "0.0.0.0/0", from_port = 443,  to_port = 443 }
       alb_ingress_from_ecr      = { nacl = "alb", rule_number = 130, egress = false, cidr_block = "0.0.0.0/0", from_port = 1024, to_port = 65535 }
-      alb_egress_to_ecs_sn3     = { nacl = "alb", rule_number = 140, egress = true,  cidr_block = module.subnet["pri-sn3"].cidr_block, from_port = 3000, to_port = 3000 }
-      alb_egress_to_ecs_sn4     = { nacl = "alb", rule_number = 141, egress = true,  cidr_block = module.subnet["pri-sn4"].cidr_block, from_port = 3000, to_port = 3000 }
-      alb_ingress_from_ecs_sn3  = { nacl = "alb", rule_number = 150, egress = false, cidr_block = module.subnet["pri-sn3"].cidr_block, from_port = 1024, to_port = 65535 }
-      alb_ingress_from_ecs_sn4  = { nacl = "alb", rule_number = 151, egress = false, cidr_block = module.subnet["pri-sn4"].cidr_block, from_port = 1024, to_port = 65535 }
+      alb_egress_to_ecs_sn34     = { nacl = "alb", rule_number = 140, egress = true,  cidr_block = "10.0.2.0/23", from_port = 3000, to_port = 3000 }
+      alb_ingress_from_ecs_sn34  = { nacl = "alb", rule_number = 150, egress = false, cidr_block = "10.0.2.0/23", from_port = 1024, to_port = 65535 }
 
       # --- ECS NACL ---
-      ecs_ingress_from_alb_sn1  = { nacl = "ecs", rule_number = 200, egress = false, cidr_block = module.subnet["pub-sn1"].cidr_block, from_port = 3000, to_port = 3000 }
-      ecs_ingress_from_alb_sn2  = { nacl = "ecs", rule_number = 201, egress = false, cidr_block = module.subnet["pub-sn2"].cidr_block, from_port = 3000, to_port = 3000 }
-      ecs_egress_to_alb_sn1     = { nacl = "ecs", rule_number = 210, egress = true,  cidr_block = module.subnet["pub-sn1"].cidr_block, from_port = 1024, to_port = 65535 }
-      ecs_egress_to_alb_sn2     = { nacl = "ecs", rule_number = 211, egress = true,  cidr_block = module.subnet["pub-sn2"].cidr_block, from_port = 1024, to_port = 65535 }
+      ecs_ingress_from_alb_sn12  = { nacl = "ecs", rule_number = 200, egress = false, cidr_block = "10.0.0.0/23", from_port = 3000, to_port = 3000 }
+      ecs_egress_to_alb_sn12     = { nacl = "ecs", rule_number = 210, egress = true,  cidr_block = "10.0.0.0/23", from_port = 1024, to_port = 65535 }
       ecs_egress_to_ecr         = { nacl = "ecs", rule_number = 220, egress = true,  cidr_block = "0.0.0.0/0", from_port = 443,  to_port = 443 }
       ecs_ingress_from_ecr      = { nacl = "ecs", rule_number = 230, egress = false, cidr_block = "0.0.0.0/0", from_port = 1024, to_port = 65535 }
-      ecs_egress_to_db_sn5      = { nacl = "ecs", rule_number = 240, egress = true,  cidr_block = module.subnet["db-sn5"].cidr_block, from_port = 3306, to_port = 3306 }
-      ecs_egress_to_db_sn6      = { nacl = "ecs", rule_number = 241, egress = true,  cidr_block = module.subnet["db-sn6"].cidr_block, from_port = 3306, to_port = 3306 }
-      ecs_ingress_from_db_sn5   = { nacl = "ecs", rule_number = 250, egress = false, cidr_block = module.subnet["db-sn5"].cidr_block, from_port = 1024, to_port = 65535 }
-      ecs_ingress_from_db_sn6   = { nacl = "ecs", rule_number = 251, egress = false, cidr_block = module.subnet["db-sn6"].cidr_block, from_port = 1024, to_port = 65535 }
+      ecs_egress_to_db_sn56      = { nacl = "ecs", rule_number = 240, egress = true,  cidr_block = "10.0.4.0/23", from_port = 3306, to_port = 3306 }
+      ecs_ingress_from_db_sn56   = { nacl = "ecs", rule_number = 250, egress = false, cidr_block = "10.0.4.0/23", from_port = 1024, to_port = 65535 }
 
       # --- DB NACL ---
-      db_ingress_from_ecs_sn3   = { nacl = "db", rule_number = 300, egress = false, cidr_block = module.subnet["pri-sn3"].cidr_block, from_port = 3306, to_port = 3306 }
-      db_ingress_from_ecs_sn4   = { nacl = "db", rule_number = 301, egress = false, cidr_block = module.subnet["pri-sn4"].cidr_block, from_port = 3306, to_port = 3306 }
-      db_egress_to_ecs_sn3      = { nacl = "db", rule_number = 310, egress = true,  cidr_block = module.subnet["pri-sn3"].cidr_block, from_port = 1024, to_port = 65535 }
-      db_egress_to_ecs_sn4      = { nacl = "db", rule_number = 311, egress = true,  cidr_block = module.subnet["pri-sn4"].cidr_block, from_port = 1024, to_port = 65535 }
+      db_ingress_from_ecs_sn34   = { nacl = "db", rule_number = 300, egress = false, cidr_block = "10.0.2.0/23", from_port = 3306, to_port = 3306 }
+      db_egress_to_ecs_sn34      = { nacl = "db", rule_number = 310, egress = true,  cidr_block = "10.0.2.0/23", from_port = 1024, to_port = 65535 }
     }
 
 }
