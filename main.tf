@@ -25,7 +25,6 @@ module "vpc" {
 
 
 ### 서브넷 Subnet ###
-
 # 서브넷 ID 참조: module.subnet["pri-sn3"].sn_id
 locals {
     subnets = {
@@ -39,6 +38,43 @@ locals {
     public_subnets = { for k, v in local.subnets : k => v if v.tier == "public" }
     ecs_subnets = { for k, v in local.subnets : k => v if v.tier == "ecs" }
     db_subnets = { for k, v in local.subnets : k => v if v.tier == "db" }
+
+    nacl_ids = {
+      alb = module.tf_alb_nacl.nacl_id
+      ecs = module.tf_ecs_nacl.nacl_id
+      db  = module.tf_db_nacl.nacl_id
+    }
+
+    nacl_rules = {
+      # --- ALB NACL ---
+      alb_ingress_https        = { nacl = "alb", rule_number = 100, egress = false, cidr_block = "0.0.0.0/0", from_port = 443,  to_port = 443 }
+      alb_egress_to_user        = { nacl = "alb", rule_number = 110, egress = true,  cidr_block = "0.0.0.0/0", from_port = 1024, to_port = 65535 }
+      alb_egress_to_ecr         = { nacl = "alb", rule_number = 120, egress = true,  cidr_block = "0.0.0.0/0", from_port = 443,  to_port = 443 }
+      alb_ingress_from_ecr      = { nacl = "alb", rule_number = 130, egress = false, cidr_block = "0.0.0.0/0", from_port = 1024, to_port = 65535 }
+      alb_egress_to_ecs_sn3     = { nacl = "alb", rule_number = 140, egress = true,  cidr_block = module.subnet["pri-sn3"].cidr_block, from_port = 3000, to_port = 3000 }
+      alb_egress_to_ecs_sn4     = { nacl = "alb", rule_number = 141, egress = true,  cidr_block = module.subnet["pri-sn4"].cidr_block, from_port = 3000, to_port = 3000 }
+      alb_ingress_from_ecs_sn3  = { nacl = "alb", rule_number = 150, egress = false, cidr_block = module.subnet["pri-sn3"].cidr_block, from_port = 1024, to_port = 65535 }
+      alb_ingress_from_ecs_sn4  = { nacl = "alb", rule_number = 151, egress = false, cidr_block = module.subnet["pri-sn4"].cidr_block, from_port = 1024, to_port = 65535 }
+
+      # --- ECS NACL ---
+      ecs_ingress_from_alb_sn1  = { nacl = "ecs", rule_number = 200, egress = false, cidr_block = module.subnet["pub-sn1"].cidr_block, from_port = 3000, to_port = 3000 }
+      ecs_ingress_from_alb_sn2  = { nacl = "ecs", rule_number = 201, egress = false, cidr_block = module.subnet["pub-sn2"].cidr_block, from_port = 3000, to_port = 3000 }
+      ecs_egress_to_alb_sn1     = { nacl = "ecs", rule_number = 210, egress = true,  cidr_block = module.subnet["pub-sn1"].cidr_block, from_port = 1024, to_port = 65535 }
+      ecs_egress_to_alb_sn2     = { nacl = "ecs", rule_number = 211, egress = true,  cidr_block = module.subnet["pub-sn2"].cidr_block, from_port = 1024, to_port = 65535 }
+      ecs_egress_to_ecr         = { nacl = "ecs", rule_number = 220, egress = true,  cidr_block = "0.0.0.0/0", from_port = 443,  to_port = 443 }
+      ecs_ingress_from_ecr      = { nacl = "ecs", rule_number = 230, egress = false, cidr_block = "0.0.0.0/0", from_port = 1024, to_port = 65535 }
+      ecs_egress_to_db_sn5      = { nacl = "ecs", rule_number = 240, egress = true,  cidr_block = module.subnet["db-sn5"].cidr_block, from_port = 3306, to_port = 3306 }
+      ecs_egress_to_db_sn6      = { nacl = "ecs", rule_number = 241, egress = true,  cidr_block = module.subnet["db-sn6"].cidr_block, from_port = 3306, to_port = 3306 }
+      ecs_ingress_from_db_sn5   = { nacl = "ecs", rule_number = 250, egress = false, cidr_block = module.subnet["db-sn5"].cidr_block, from_port = 1024, to_port = 65535 }
+      ecs_ingress_from_db_sn6   = { nacl = "ecs", rule_number = 251, egress = false, cidr_block = module.subnet["db-sn6"].cidr_block, from_port = 1024, to_port = 65535 }
+
+      # --- DB NACL ---
+      db_ingress_from_ecs_sn3   = { nacl = "db", rule_number = 300, egress = false, cidr_block = module.subnet["pri-sn3"].cidr_block, from_port = 3306, to_port = 3306 }
+      db_ingress_from_ecs_sn4   = { nacl = "db", rule_number = 301, egress = false, cidr_block = module.subnet["pri-sn4"].cidr_block, from_port = 3306, to_port = 3306 }
+      db_egress_to_ecs_sn3      = { nacl = "db", rule_number = 310, egress = true,  cidr_block = module.subnet["pri-sn3"].cidr_block, from_port = 1024, to_port = 65535 }
+      db_egress_to_ecs_sn4      = { nacl = "db", rule_number = 311, egress = true,  cidr_block = module.subnet["pri-sn4"].cidr_block, from_port = 1024, to_port = 65535 }
+    }
+
 }
 
 module "subnet" {
@@ -202,7 +238,7 @@ resource "aws_vpc_security_group_ingress_rule" "tf_db_sg_ingress" {
 
 ### NACL 네트워크 ACL ###
 
-###  ALB NACL  ###
+# ALB NACL
 module "tf_alb_nacl"{
   source   = "./modules/nacl"
   region   = "ap-northeast-2"
@@ -211,107 +247,7 @@ module "tf_alb_nacl"{
   subnet_ids = [module.subnet["pub-sn1"].sn_id, module.subnet["pub-sn2"].sn_id]
 }
 
-# ALB NACL Ingress Rule 443
-resource "aws_network_acl_rule" "tf_alb_nacl_rule" {
-  network_acl_id = module.tf_alb_nacl.nacl_id
-  rule_number    = 100
-  # egress: egress 인수는 이 규칙이 egress인지 나타냄. 기본값은 false
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  # cidr_block: 허용 또는 거부할 네트워크 범위를 CIDR 표기법으로 지정
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 443
-  to_port        = 443
-}
-
-# ALB NACL Egress Rule 1024 ~ 65535
-# 왜 포트 범위 1024 ~ 65535냐면 목적지 포트는 랜덤이니 에페메럴 범위 전체로 씀
-# 에페메럴 포트: 일시적인/임시 포트
-resource "aws_network_acl_rule" "tf_alb_nacl_out_ephemeral" {
-  network_acl_id = module.tf_alb_nacl.nacl_id
-  rule_number    = 110
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 1024
-  to_port        = 65535
-}
-
-# NAT -> ECR 요청
-resource "aws_network_acl_rule" "tf_alb_nat_ecr_egress" {
-  network_acl_id = module.tf_alb_nacl.nacl_id
-  rule_number    = 120
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 443
-  to_port        = 443
-}
-
-# ECR -> NAT 응답
-resource "aws_network_acl_rule" "tf_alb_nat_ecr_ingress" {
-  network_acl_id = module.tf_alb_nacl.nacl_id
-  rule_number    = 130
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 1024
-  to_port        = 65535
-}
-
-# ALB -> ECS 요청
-resource "aws_network_acl_rule" "tf_alb_ecs_egress1" {
-  network_acl_id = module.tf_alb_nacl.nacl_id
-  rule_number    = 140
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pri-sn3"].cidr_block   
-  from_port      = 3000
-  to_port        = 3000
-}
-
-resource "aws_network_acl_rule" "tf_alb_ecs_egress2" {
-  network_acl_id = module.tf_alb_nacl.nacl_id
-  rule_number    = 141
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pri-sn4"].cidr_block   
-  from_port      = 3000
-  to_port        = 3000
-}
-
-# ECS -> ALB 응답
-resource "aws_network_acl_rule" "tf_alb_ecs_ingress1" {
-  network_acl_id = module.tf_alb_nacl.nacl_id
-  rule_number    = 150
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pri-sn3"].cidr_block   
-  from_port      = 1024
-  to_port        = 65535
-}
-
-resource "aws_network_acl_rule" "tf_alb_ecs_ingress2" {
-  network_acl_id = module.tf_alb_nacl.nacl_id
-  rule_number    = 151
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pri-sn4"].cidr_block   
-  from_port      = 1024
-  to_port        = 65535
-}
-
-
-###   ECS NACL  ###
-
+# ECS NACL
 module "tf_ecs_nacl"{
   source   = "./modules/nacl"
   region   = "ap-northeast-2"
@@ -319,126 +255,6 @@ module "tf_ecs_nacl"{
   vpc_id   = module.vpc.vpc_id
   subnet_ids = [module.subnet["pri-sn3"].sn_id, module.subnet["pri-sn4"].sn_id]
 }
-
-# ECS NACL RULE ingress 3000
-resource "aws_network_acl_rule" "tf_ecs_nacl_ingress1" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 200
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pub-sn1"].cidr_block
-  from_port      = 3000
-  to_port        = 3000
-}
-
-resource "aws_network_acl_rule" "tf_ecs_nacl_ingress2" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 201
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pub-sn2"].cidr_block
-  from_port      = 3000
-  to_port        = 3000
-}
-
-# ECS NACL Rule Egress 1024-65535
-resource "aws_network_acl_rule" "tf_ecs_nacl_egress1" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 210
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pub-sn1"].cidr_block
-  from_port      = 1024
-  to_port        = 65535
-}
-
-# ECS NACL Rule Egress 1024-65535
-resource "aws_network_acl_rule" "tf_ecs_nacl_egress2" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 211
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pub-sn2"].cidr_block
-  from_port      = 1024
-  to_port        = 65535
-}
-
-# ECS -> ECR 요청
-resource "aws_network_acl_rule" "tf_ecs_ecr_egress" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 220
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 443
-  to_port        = 443
-}
-
-# ECR -> ECS 응답
-resource "aws_network_acl_rule" "tf_ecs_ecr_ingress" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 230
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 1024
-  to_port        = 65535
-}
-
-
-# ECS -> DB 요청1
-resource "aws_network_acl_rule" "tf_ecs_db_egress1" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 240
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["db-sn5"].cidr_block
-  from_port      = 3306
-  to_port        = 3306
-}
-
-# ECS -> DB 요청2
-resource "aws_network_acl_rule" "tf_ecs_db_egress2" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 241
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["db-sn6"].cidr_block
-  from_port      = 3306
-  to_port        = 3306
-}
-
-# DB -> ECS 응답
-resource "aws_network_acl_rule" "tf_ecs_db_ingress1" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 250
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["db-sn5"].cidr_block
-  from_port      = 1024
-  to_port        = 65535
-}
-
-resource "aws_network_acl_rule" "tf_ecs_db_ingress2" {
-  network_acl_id = module.tf_ecs_nacl.nacl_id
-  rule_number    = 251
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["db-sn6"].cidr_block
-  from_port      = 1024
-  to_port        = 65535
-}
-
 
 # DB NACL
 module "tf_db_nacl"{
@@ -449,49 +265,15 @@ module "tf_db_nacl"{
   subnet_ids = [module.subnet["db-sn5"].sn_id, module.subnet["db-sn6"].sn_id]
 }
 
-# ECS -> DB 요청
-resource "aws_network_acl_rule" "tf_db_ecs_ingress1" {
-  network_acl_id = module.tf_db_nacl.nacl_id
-  rule_number    = 300
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pri-sn3"].cidr_block
-  from_port      = 3306
-  to_port        = 3306
-}
-
-resource "aws_network_acl_rule" "tf_db_ecs_ingress2" {
-  network_acl_id = module.tf_db_nacl.nacl_id
-  rule_number    = 301
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pri-sn4"].cidr_block
-  from_port      = 3306
-  to_port        = 3306
-}
-
-# DB -> ECS 응답
-resource "aws_network_acl_rule" "tf_db_ecs_egress1" {
-  network_acl_id = module.tf_db_nacl.nacl_id
-  rule_number    = 310
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pri-sn3"].cidr_block
-  from_port      = 1024
-  to_port        = 65535
-}
-
-# DB NACL Rule Egress 1024-65535
-resource "aws_network_acl_rule" "tf_db_ecs_egress2" {
-  network_acl_id = module.tf_db_nacl.nacl_id
-  rule_number    = 311
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = module.subnet["pri-sn4"].cidr_block
-  from_port      = 1024
-  to_port        = 65535
+# NACL 규칙
+resource "aws_network_acl_rule" "this" {
+  for_each        = local.nacl_rules
+  network_acl_id  = local.nacl_ids[each.value.nacl]
+  rule_number     = each.value.rule_number
+  egress          = each.value.egress
+  protocol        = "tcp"
+  rule_action     = "allow"
+  cidr_block      = each.value.cidr_block
+  from_port       = each.value.from_port
+  to_port         = each.value.to_port
 }
