@@ -23,6 +23,7 @@ module "vpc" {
   pjt_name       = "seoul-vpc"
 }
 
+# 서브넷 ID 참조: module.subnet["pri-sn3"].sn_id
 locals {
     subnets = {
         pub-sn1 = {cidr = "10.0.1.0/24", az = "ap-northeast-2a", tier = "public"},
