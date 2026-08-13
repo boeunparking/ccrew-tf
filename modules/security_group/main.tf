@@ -1,5 +1,5 @@
 resource "aws_security_group" "tf_sg" {
-  name = ""
+  name = "${var.pjt_name}"
   description = var.desc
   vpc_id = var.vpc_id
 

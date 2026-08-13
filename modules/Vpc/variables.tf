@@ -1,3 +1,7 @@
+variable "region" {
+  type        = string
+  description = "Region Name"
+}
 variable "vpc_cidr_block" {
   type        = string
   description = "VPC CIDR Block"
@@ -5,7 +9,4 @@ variable "vpc_cidr_block" {
 variable "pjt_name" {
   type        = string
   description = "Project Name"
-}
-variable "region" {
-  type        = string
 }
