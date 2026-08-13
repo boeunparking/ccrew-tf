@@ -7,213 +7,38 @@ terraform {
   }
 }
 
+# 서울 리전 (기본 provider)
 provider "aws" {
-  region = var.region
+  region = var.region_seoul
 }
 
-variable "region" {
-  type    = string
-  default = "ap-northeast-2"
-}
-
-module "vpc" {
-  source         = "./modules/vpc"
-  region         = "ap-northeast-2"
-  vpc_cidr_block = "10.0.0.0/16"
-  pjt_name       = "seoul-vpc"
-}
-
-module "tf_pub_sn1" {
-  source        = "./modules/subnet"
-  region        = "ap-northeast-2"
-  vpc_id        = module.vpc.vpc_id
-  sn_cidr_block = "10.0.1.0/24"
-  az_name       = "ap-northeast-2a"
-  pjt_name      = "tf-pub-sn1"
-}
-
-module "tf_pri_sn2" {
-  source        = "./modules/subnet"
-  region        = "ap-northeast-2"
-  vpc_id        = module.vpc.vpc_id
-  sn_cidr_block = "10.0.2.0/24"
-  az_name       = "ap-northeast-2a"
-  pjt_name      = "tf-pri-sn2"
-}
-
-module "tf_pri_sn3" {
-  source        = "./modules/subnet"
-  region        = "ap-northeast-2"
-  vpc_id        = module.vpc.vpc_id
-  sn_cidr_block = "10.0.3.0/24"
-  az_name       = "ap-northeast-2c"
-  pjt_name      = "tf-pri-sn3"
-}
-
-module "tf_db_sn4" {
-  source        = "./modules/subnet"
-  region        = "ap-northeast-2"
-  vpc_id        = module.vpc.vpc_id
-  sn_cidr_block = "10.0.4.0/24"
-  az_name       = "ap-northeast-2a"
-  pjt_name      = "tf-db-sn4"
-}
-
-module "tf_db_sn5" {
-  source        = "./modules/subnet"
-  region        = "ap-northeast-2"
-  vpc_id        = module.vpc.vpc_id
-  sn_cidr_block = "10.0.5.0/24"
-  az_name       = "ap-northeast-2c"
-  pjt_name      = "tf-db-sn5"
+# 도쿄 리전 (alias provider)
+provider "aws" {
+  alias  = "tokyo"
+  region = var.region_tokyo
 }
 
 
-# 퍼블릭 라우팅 테이블 12  
-module "tf_pub_rt1" {
-  source   = "./modules/route_table"
-  vpc_id   = module.vpc.vpc_id
-  pjt_name = "tf-pub-rt1"
+### 서울 인프라 ###
+module "seoul" {
+  source = "./modules/region_stack"
+
+  region         = var.region_seoul
+  vpc_cidr_block = var.vpc_cidr_seoul
+  pjt_prefix     = "seoul"
+  subnets        = var.subnets_seoul
 }
 
-resource "aws_route_table_association" "tf_rt_sn_ass1" {
-  subnet_id      = module.tf_pub_sn1.sn_id
-  route_table_id = module.tf_pub_rt1.rt_id
-}
 
-resource "aws_route" "pub_default" {
-  route_table_id         = module.tf_pub_rt1.rt_id
-  destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = module.vpc.igw_id
-}
-
-# EIP 
-resource "aws_eip" "tf_nat_eip" {
-  tags = {
-    Name = "tf-nat-eip"
+### 도쿄 인프라 ###
+module "tokyo" {
+  source = "./modules/region_stack"
+  providers = {
+    aws = aws.tokyo
   }
+
+  region         = var.region_tokyo
+  vpc_cidr_block = var.vpc_cidr_tokyo
+  pjt_prefix     = "tokyo"
+  subnets        = var.subnets_tokyo
 }
-
-# NAT 게이트웨이
-resource "aws_nat_gateway" "tf_nat_gw" {
-  allocation_id = aws_eip.tf_nat_eip.id
-  subnet_id     = module.tf_pub_sn1.sn_id
-
-  tags = {
-    Name = "tf-nat-gw"
-  }
-  depends_on = [module.vpc.igw_id]
-}
-
-# 프라이빗 라우팅 테이블 23
-module "tf_pri_rt23" {
-  source   = "./modules/route_table"
-  vpc_id   = module.vpc.vpc_id
-  pjt_name = "tf-pri-rt23"
-}
-
-resource "aws_route_table_association" "tf_rt_sn_ass2" {
-  subnet_id      = module.tf_pri_sn2.sn_id
-  route_table_id = module.tf_pri_rt23.rt_id
-}
-resource "aws_route_table_association" "tf_rt_sn_ass3" {
-  subnet_id      = module.tf_pri_sn3.sn_id
-  route_table_id = module.tf_pri_rt23.rt_id
-}
-
-resource "aws_route" "pri_default" {
-  route_table_id         = module.tf_pri_rt23.rt_id
-  destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_nat_gateway.tf_nat_gw.id
-  depends_on             = [aws_nat_gateway.tf_nat_gw]
-}
-
-# 프라이빗 라우팅 테이블 45
-module "tf_db_rt45" {
-  source   = "./modules/route_table"
-  vpc_id   = module.vpc.vpc_id
-  pjt_name = "tf-db-rt45"
-}
-
-resource "aws_route_table_association" "tf_rt_sn_ass4" {
-  subnet_id      = module.tf_db_sn4.sn_id
-  route_table_id = module.tf_db_rt45.rt_id
-}
-resource "aws_route_table_association" "tf_rt_sn_ass5" {
-  subnet_id      = module.tf_db_sn5.sn_id
-  route_table_id = module.tf_db_rt45.rt_id
-}
-
-# ALB 보안그룹
-module "alb_sg" {
-  source   = "./modules/security_group"
-  region   = "ap-northeast-2"
-  pjt_name = "tf-alb-sg"
-  vpc_id   = module.vpc.vpc_id
-  desc     = "Allow HTTP, HTTPS"
-}
-
-resource "aws_vpc_security_group_ingress_rule" "tf_alb_sg_ingress_https" {
-  security_group_id = module.alb_sg.sg_id
-  cidr_ipv4         = "0.0.0.0/0"
-  from_port         = 443
-  ip_protocol       = "tcp"
-  to_port           = 443
-}
-
-resource "aws_vpc_security_group_ingress_rule" "tf_alb_sg_ingress_http" {
-  security_group_id = module.alb_sg.sg_id
-  cidr_ipv4         = "0.0.0.0/0"
-  from_port         = 80
-  ip_protocol       = "tcp"
-  to_port           = 80
-}
-
-resource "aws_vpc_security_group_egress_rule" "tf_alb_sg_egress" {
-  security_group_id = module.alb_sg.sg_id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "-1" # semantically equivalent to all ports
-}
-
-
-# ECS 보안그룹
-module "ecs_sg" {
-  source   = "./modules/security_group"
-  region   = "ap-northeast-2"
-  pjt_name = "tf-ecs-sg"
-  vpc_id   = module.vpc.vpc_id
-  desc     = "Allow 3000"
-}
-
-resource "aws_vpc_security_group_ingress_rule" "tf_ecs_sg_ingress" {
-  security_group_id            = module.ecs_sg.sg_id
-  referenced_security_group_id = module.alb_sg.sg_id
-  from_port                    = 3000
-  ip_protocol                  = "tcp"
-  to_port                      = 3000
-}
-
-resource "aws_vpc_security_group_egress_rule" "tf_ecs_sg_egress" {
-  security_group_id = module.ecs_sg.sg_id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "-1" # semantically equivalent to all ports
-}
-
-
-# DB 보안그룹
-module "db_sg" {
-  source   = "./modules/security_group"
-  region   = "ap-northeast-2"
-  pjt_name = "tf-db-sg"
-  vpc_id   = module.vpc.vpc_id
-  desc     = "Allow 3306"
-}
-
-resource "aws_vpc_security_group_ingress_rule" "tf_db_sg_ingress" {
-  security_group_id            = module.db_sg.sg_id
-  referenced_security_group_id = module.ecs_sg.sg_id
-  from_port                    = 3306
-  ip_protocol                  = "tcp"
-  to_port                      = 3306
-}
-

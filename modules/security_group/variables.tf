@@ -1,19 +1,16 @@
-variable "region" {
-  type        = string
-  default     = ""
-}
 
 variable "vpc_id" {
   type        = string
-  default     = ""
 }
 
 variable "desc" {
   type        = string
-  default     = ""
+  description = "desc"
 }
 
 variable "pjt_name" {
   type        = string
-  default     = ""
+}
+variable "region" {
+  type        = string
 }

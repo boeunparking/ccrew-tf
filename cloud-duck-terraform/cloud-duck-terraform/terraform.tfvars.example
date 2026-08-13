@@ -1,0 +1,47 @@
+# 실제 값으로 바꾼 뒤 terraform.tfvars 로 복사해서 사용
+#
+# 아래 VPC / 서브넷 / SG / 라우트테이블 ID 는 ccrew-tf 가 만든 리소스다.
+# ccrew-tf 는 state 가 분리되어 있어 module.* 로 참조할 수 없으므로
+# 실제 ID 문자열을 직접 넣어야 한다.
+#
+# 값 확인 방법 (ccrew-tf 디렉터리에서):
+#   terraform state show 'module.seoul.module.vpc.aws_vpc.tf_vpc'
+#   terraform state show 'module.seoul.module.subnet["db-sn5"].aws_subnet.tf_sn'
+#   terraform state show 'module.seoul.module.ecs_sg.aws_security_group.tf_sg'
+#   또는 AWS 콘솔에서 Name 태그(tf-seoul-*, tf-tokyo-*)로 검색
+
+# ---- 서울 (Active, 172.16.0.0/16) ----
+# ccrew-tf module "seoul" (region_stack)
+seoul_vpc_id             = "vpc-xxxxxxxxxxxxxxxxx"                      # seoul-vpc
+seoul_db_subnet_ids      = ["subnet-xxxxxxxx", "subnet-xxxxxxxx"]       # tf-seoul-db-sn5(172.16.4.0/24), tf-seoul-db-sn6(172.16.5.0/24)
+seoul_private_subnet_ids = ["subnet-xxxxxxxx", "subnet-xxxxxxxx"]       # tf-seoul-pri-sn3(172.16.2.0/24), tf-seoul-pri-sn4(172.16.3.0/24)
+seoul_ecs_sg_id          = "sg-xxxxxxxxxxxxxxxxx"                       # tf-seoul-ecs-sg
+seoul_route_table_ids    = ["rtb-xxxxxxxx", "rtb-xxxxxxxx"]             # tf-seoul-pri-rt34, tf-seoul-db-rt56
+
+# ---- 도쿄 (Warm Standby, 172.17.0.0/16) ----
+# ccrew-tf module "tokyo" (region_stack)
+tokyo_vpc_id        = "vpc-yyyyyyyyyyyyyyyyy"                           # tokyo-vpc
+tokyo_db_subnet_ids = ["subnet-yyyyyyyy", "subnet-yyyyyyyy"]            # tf-tokyo-db-sn5(172.17.4.0/24), tf-tokyo-db-sn6(172.17.5.0/24)
+tokyo_ecs_sg_id     = "sg-yyyyyyyyyyyyyyyyy"                            # tf-tokyo-ecs-sg
+
+# 크로스 리전 피어링(main.tf 하단 주석)을 쓸 때만 필요
+# tokyo_route_table_ids = ["rtb-yyyyyyyy", "rtb-yyyyyyyy"]              # tf-tokyo-pri-rt34, tf-tokyo-db-rt56
+
+# ---- VPC Peering (Site-to-Site VPN 대체) ----
+# 온프레미스로 표기된 VPC — ccrew-tf 범위 밖이라 별도로 만들어야 함
+onprem_vpc_id          = "vpc-zzzzzzzzzzzzzzzzz"
+onprem_vpc_cidr        = "10.100.0.0/16"
+onprem_route_table_ids = ["rtb-zzzzzzzz"]
+
+# ---- Client VPN ----
+# 10.200.0.0/22 는 서울 172.16.0.0/16 · 도쿄 172.17.0.0/16 과 겹치지 않음
+vpn_client_cidr          = "10.200.0.0/22"
+vpn_server_cert_arn      = "arn:aws:acm:ap-northeast-2:123456789012:certificate/..."
+vpn_client_root_cert_arn = "arn:aws:acm:ap-northeast-2:123456789012:certificate/..."
+
+# ---- CloudWatch ----
+# ECS / ALB 는 ccrew-tf 범위 밖(현재 네트워크만 생성). 만든 쪽 이름으로 채울 것
+alarm_email            = "team@cloud-duck.io"
+seoul_ecs_cluster_name = "cloud-duck-seoul"
+seoul_ecs_service_name = "cloud-duck-app"
+seoul_alb_arn_suffix   = "app/cloud-duck-alb/1234567890abcdef" # 없으면 "" 로 두면 ALB 알람 생략
