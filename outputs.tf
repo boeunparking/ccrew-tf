@@ -70,3 +70,18 @@ output "tokyo_route_table_ids" {
     module.tokyo.route_table_ids["db"],
   ]
 }
+
+
+### ---- 컴퓨트 (서울) ---- ###
+
+output "seoul_ecs_cluster_name" {
+  value = aws_ecs_cluster.tf_cluster.name
+}
+
+output "seoul_ecs_service_name" {
+  value = module.web_service.service_name
+}
+
+output "seoul_alb_arn_suffix" {
+  value = module.alb.alb_arn_suffix
+}
